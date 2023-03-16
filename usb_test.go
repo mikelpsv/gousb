@@ -94,3 +94,40 @@ func TestOpenDeviceWithVIDPID(t *testing.T) {
 		}
 	}
 }
+
+func TestContext_OpenDeviceWithVIDPIDSerial(t *testing.T) {
+	t.Parallel()
+	ctx := newContextWithImpl(newFakeLibusb())
+	defer func() {
+		if err := ctx.Close(); err != nil {
+			t.Errorf("Context.Close(): %v", err)
+		}
+	}()
+
+	for _, d := range []struct {
+		vid, pid ID
+		exists   bool
+		serial   string
+	}{
+		{0x7777, 0x0003, false, ""},
+		{0x8888, 0x0002, true, "01234567"},
+		{0x8888, 0x0001, false, "654321"},
+		{0x9999, 0x0001, false, "00-223"},
+		{0x9999, 0x0002, false, "X2"},
+	} {
+		dev, err := ctx.OpenDeviceWithVIDPIDSerial(d.vid, d.pid, d.serial)
+		if (dev != nil) != d.exists {
+			t.Errorf("OpenDeviceWithVIDPIDSerial(%s/%s/%s): device != nil is %v, want %v", ID(d.vid), ID(d.pid), d.serial, dev != nil, d.exists)
+		}
+		if err != nil {
+			t.Errorf("OpenDeviceWithVIDPIDSerial(%s/%s/%s): got error %v, want nil", ID(d.vid), ID(d.pid), d.serial, err)
+		}
+		if dev != nil {
+			sn, _ := dev.SerialNumber()
+			if dev.Desc.Vendor != ID(d.vid) || dev.Desc.Product != ID(d.pid) || sn != d.serial {
+				t.Errorf("OpenDeviceWithVIDPIDSerial(%s/%s/%s): the device returned has VID/PID %s/%s/%s, different from specified in the arguments", ID(d.vid), ID(d.pid), d.serial, dev.Desc.Vendor, dev.Desc.Product, sn)
+			}
+			dev.Close()
+		}
+	}
+}
