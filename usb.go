@@ -235,6 +235,34 @@ func (c *Context) OpenDeviceWithVIDPID(vid, pid ID) (*Device, error) {
 	return devs[0], nil
 }
 
+// OpenDeviceWithVIDPIDSerial opens Device from specific VendorId and ProductId and SerialNum if exists.
+// If none is found, it returns nil and nil error.
+// If there were any errors during device list traversal, it is possible
+// it will return a non-nil device and non-nil error. A Device.Close() must
+// be called to release the device if the returned device wasn't nil.
+func (c *Context) OpenDeviceWithVIDPIDSerial(vid, pid ID, Serial string) (*Device, error) {
+	devs, err := c.OpenDevices(func(desc *DeviceDesc) bool {
+		if desc.Vendor == ID(vid) && desc.Product == ID(pid) {
+			return true
+		}
+		return false
+	})
+	if len(devs) == 0 {
+		return nil, err
+	}
+
+	devBySn := new(Device)
+	for _, dev := range devs {
+		if devSn, _ := dev.SerialNumber(); devSn == Serial {
+			devBySn = dev
+		} else {
+			c.closeDev(dev)
+			devBySn = nil
+		}
+	}
+	return devBySn, nil
+}
+
 func (c *Context) closeDev(d *Device) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
